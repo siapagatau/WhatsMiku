@@ -1,8 +1,11 @@
 package com.farel.waresponder
 
+import android.app.Notification
+import android.app.RemoteInput
+import android.content.Intent
+import android.os.Bundle
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
-import android.content.Intent
 import android.util.Log
 
 class NotificationService : NotificationListenerService() {
@@ -23,7 +26,7 @@ class NotificationService : NotificationListenerService() {
         val pkg = sbn.packageName
         log("📩 Notif dari: $pkg")
 
-        // ✅ Support WA & WA Business
+        // ✅ Support WhatsApp & WA Business
         if (pkg != "com.whatsapp" && pkg != "com.whatsapp.w4b") {
             log("Bukan WhatsApp → skip")
             return
@@ -53,29 +56,59 @@ class NotificationService : NotificationListenerService() {
         log("👤 Pengirim : $title")
         log("💬 Pesan    : $text")
 
-        // 🔎 Cek bisa reply atau tidak
-        val actions = sbn.notification.actions
-        if (actions == null) {
-            log("❌ Tidak ada tombol reply")
-            return
-        }
+        // =====================================================
+        // 🔥 AMBIL REPLY ACTION (SUPPORT WA TERBARU)
+        // =====================================================
 
-        var canReply = false
-        for (action in actions) {
+        var replyAction: Notification.Action? = null
+
+        // 1️⃣ Cek normal actions (Android lama)
+        sbn.notification.actions?.forEach { action ->
             if (action.remoteInputs != null) {
-                canReply = true
-                break
+                replyAction = action
             }
         }
 
-        if (!canReply) {
-            log("❌ Pesan tidak bisa direply")
+        // 2️⃣ Cek WearableExtender (WhatsApp modern)
+        if (replyAction == null) {
+            val wearableExtender = Notification.WearableExtender(sbn.notification)
+            wearableExtender.actions.forEach { action ->
+                if (action.remoteInputs != null) {
+                    replyAction = action
+                }
+            }
+        }
+
+        if (replyAction == null) {
+            log("❌ Tidak ada tombol reply (WA new system)")
             return
         }
 
-        // 🚀 KIRIM KE TERMUX
-        log("🚀 Kirim ke Termux...")
+        log("✅ Reply action ditemukan!")
 
+        // =====================================================
+        // 🧪 TEST AUTO REPLY LANGSUNG (HARDCODE)
+        // =====================================================
+        try {
+            val intent = Intent()
+            val bundle = Bundle()
+
+            for (remoteInput in replyAction!!.remoteInputs) {
+                bundle.putCharSequence(remoteInput.resultKey, "Halo dari bot 🤖")
+            }
+
+            RemoteInput.addResultsToIntent(replyAction!!.remoteInputs, intent, bundle)
+            replyAction!!.actionIntent.send(this, 0, intent)
+
+            log("✅ AUTO REPLY BERHASIL DIKIRIM!")
+
+        } catch (e: Exception) {
+            log("❌ Gagal kirim auto reply: ${e.message}")
+        }
+
+        // =====================================================
+        // 🚀 KIRIM DATA KE TERMUX (NODE BOT)
+        // =====================================================
         try {
             val intent = Intent()
             intent.setClassName(
@@ -100,10 +133,10 @@ class NotificationService : NotificationListenerService() {
 
             sendBroadcast(intent)
 
-            log("✅ SUKSES kirim ke Termux")
+            log("🚀 Data dikirim ke Termux")
 
         } catch (e: Exception) {
-            log("❌ GAGAL kirim ke Termux")
+            log("❌ Gagal kirim ke Termux")
             log("Error: ${e.message}")
         }
     }
