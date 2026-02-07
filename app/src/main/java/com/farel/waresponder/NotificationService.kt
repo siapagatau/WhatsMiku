@@ -3,7 +3,6 @@ package com.farel.waresponder
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.content.Intent
-import android.widget.Toast
 import android.util.Log
 
 class NotificationService : NotificationListenerService() {
@@ -12,60 +11,70 @@ class NotificationService : NotificationListenerService() {
 
     private fun log(msg: String) {
         Log.d(TAG, msg)
-        Toast.makeText(applicationContext, msg, Toast.LENGTH_SHORT).show()
     }
 
     override fun onListenerConnected() {
         super.onListenerConnected()
-        log("Notification Listener AKTIF ✅")
+        log("✅ Notification Listener CONNECTED")
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
+
         val pkg = sbn.packageName
-        log("Notif masuk dari package: $pkg")
+        log("📩 Notif dari: $pkg")
 
-        // hanya WhatsApp
-        if (pkg != "com.whatsapp") {
-            log("Bukan WhatsApp, dilewati")
+        // ✅ Support WA & WA Business
+        if (pkg != "com.whatsapp" && pkg != "com.whatsapp.w4b") {
+            log("Bukan WhatsApp → skip")
             return
         }
 
-        val notification = sbn.notification
-        val extras = notification.extras
+        val extras = sbn.notification.extras
 
+        // 🔎 Ambil isi pesan (multi fallback)
         val title = extras.getString("android.title")
-        val text = extras.getCharSequence("android.text")?.toString()
 
-        if (title == null || text == null) {
-            log("Notif tidak punya title/text ❌")
+        var text = extras.getCharSequence("android.text")?.toString()
+
+        if (text == null)
+            text = extras.getCharSequence("android.bigText")?.toString()
+
+        if (text == null) {
+            val lines = extras.getCharSequenceArray("android.textLines")
+            if (lines != null && lines.isNotEmpty())
+                text = lines.joinToString("\n")
+        }
+
+        if (title.isNullOrEmpty() || text.isNullOrEmpty()) {
+            log("❌ Gagal ambil title/text")
             return
         }
 
-        log("Pesan WA terdeteksi 📩")
-        log("Pengirim: $title")
-        log("Isi pesan: $text")
+        log("👤 Pengirim : $title")
+        log("💬 Pesan    : $text")
 
-        val actions = notification.actions
+        // 🔎 Cek bisa reply atau tidak
+        val actions = sbn.notification.actions
         if (actions == null) {
-            log("Notif tidak punya actions ❌")
+            log("❌ Tidak ada tombol reply")
             return
         }
 
-        var hasReply = false
+        var canReply = false
         for (action in actions) {
             if (action.remoteInputs != null) {
-                hasReply = true
+                canReply = true
                 break
             }
         }
 
-        if (!hasReply) {
-            log("Pesan tidak bisa direply (mungkin grup/missed call) ❌")
+        if (!canReply) {
+            log("❌ Pesan tidak bisa direply")
             return
         }
 
-        // 🔥 KIRIM KE TERMUX
-        log("Mengirim perintah ke Termux...")
+        // 🚀 KIRIM KE TERMUX
+        log("🚀 Kirim ke Termux...")
 
         try {
             val intent = Intent()
@@ -74,6 +83,7 @@ class NotificationService : NotificationListenerService() {
                 "com.termux.app.RunCommandReceiver"
             )
 
+            intent.setPackage("com.termux")
             intent.action = "com.termux.RUN_COMMAND"
 
             intent.putExtra(
@@ -90,10 +100,10 @@ class NotificationService : NotificationListenerService() {
 
             sendBroadcast(intent)
 
-            log("BERHASIL kirim ke Termux 🚀")
+            log("✅ SUKSES kirim ke Termux")
 
         } catch (e: Exception) {
-            log("GAGAL kirim ke Termux ❌")
+            log("❌ GAGAL kirim ke Termux")
             log("Error: ${e.message}")
         }
     }
