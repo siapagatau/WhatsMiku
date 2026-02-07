@@ -78,7 +78,7 @@ class NotificationService : NotificationListenerService() {
         log("👤 Pengirim : $title")
         log("💬 Pesan    : $text")
 
-        // ===== KIRIM DATA KE TERMUX =====
+        // ===== KIRIM DATA KE TERMUX (NODE BOT) =====
         try {
             val intent = Intent().apply {
                 setClassName(
@@ -98,7 +98,7 @@ class NotificationService : NotificationListenerService() {
                 putExtra("com.termux.RUN_COMMAND_BACKGROUND", true)
             }
             sendBroadcast(intent)
-            log("🚀 Data dikirim ke Termux")
+            log("🚀 Data dikirim ke Termux → menunggu reply status")
         } catch (e: Exception) {
             log("❌ Gagal kirim ke Termux")
             log("Error: ${e.message}")
