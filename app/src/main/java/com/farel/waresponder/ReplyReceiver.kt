@@ -3,12 +3,10 @@ package com.farel.waresponder
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.util.Log
 import android.app.RemoteInput
+import java.io.File
 
 class ReplyReceiver : BroadcastReceiver() {
-
-    private val TAG = "WAResponder"
 
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != "WA_REPLY") return
@@ -16,7 +14,10 @@ class ReplyReceiver : BroadcastReceiver() {
         val replyText = intent.getStringExtra("reply") ?: return
         val key = intent.getStringExtra("key") ?: "dummy"
 
-        Log.d(TAG, "📤 WA_REPLY diterima: $replyText (key=$key)")
+        val logFile = File(context.getExternalFilesDir(null), "waresponder.log")
+        try {
+            logFile.appendText("${System.currentTimeMillis()} 📤 WA_REPLY diterima: $replyText (key=$key)\n")
+        } catch (_: Exception) {}
 
         // Kirim balasan ke WA via last replyAction
         LastReplyAction.action?.let { action ->
@@ -25,9 +26,9 @@ class ReplyReceiver : BroadcastReceiver() {
                 action.remoteInputs?.forEach { ri -> bundle.putCharSequence(ri.resultKey, replyText) }
                 RemoteInput.addResultsToIntent(action.remoteInputs, Intent(), bundle)
                 action.actionIntent.send(context, 0, Intent())
-                Log.d(TAG, "✅ Balasan dikirim ke WA: $replyText")
+                logFile.appendText("${System.currentTimeMillis()} ✅ Balasan dikirim ke WA: $replyText\n")
             } catch (e: Exception) {
-                Log.d(TAG, "❌ Gagal kirim balasan: ${e.message}")
+                logFile.appendText("${System.currentTimeMillis()} ❌ Gagal kirim balasan: ${e.message}\n")
             }
         }
     }
