@@ -1,96 +1,61 @@
 package com.farel.waresponder
 
+import android.app.Notification
+import android.app.RemoteInput
 import android.content.Intent
-import android.os.Bundle
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
-import java.io.File
+
+object LastReplyAction {
+    var action: Notification.Action? = null
+}
 
 class NotificationService : NotificationListenerService() {
 
     private val TAG = "WAResponder"
 
-    // ========================
-    // LOG RELIABLE
-    // ========================
     private fun log(msg: String) {
-        Log.d(TAG, msg)        // optional, kadang ga muncul di Android 12+
-        logToTermux(msg)       // realtime di Termux
-        logToFile(msg)         // persistent
+        Log.d(TAG, msg)
     }
 
-    private fun logToTermux(msg: String) {
-        try {
-            val intent = Intent("com.farel.waresponder.LOG")
-            intent.putExtra("log", msg)
-            sendBroadcast(intent)
-        } catch (_: Exception) {}
-    }
-
-    private fun logToFile(msg: String) {
-        try {
-            val file = File(getExternalFilesDir(null), "waresponder.log")
-            file.appendText("${System.currentTimeMillis()} $msg\n")
-        } catch (_: Exception) {}
-    }
-
-    // ========================
-    // NotificationListener
-    // ========================
     override fun onListenerConnected() {
         super.onListenerConnected()
         log("✅ Notification Listener CONNECTED")
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
-
         val pkg = sbn.packageName
-        log("📩 Notif dari: $pkg")
-
-        // ✅ Support WhatsApp & WA Business
-        if (pkg != "com.whatsapp" && pkg != "com.whatsapp.w4b") {
-            log("Bukan WhatsApp → skip")
-            return
-        }
+        if (pkg != "com.whatsapp" && pkg != "com.whatsapp.w4b") return
 
         val extras = sbn.notification.extras
-        val title = extras.getString("android.title")
+        val title = extras.getString("android.title") ?: return
         val text = extras.getCharSequence("android.text")?.toString()
             ?: extras.getCharSequence("android.bigText")?.toString()
-            ?: extras.getCharSequenceArray("android.textLines")?.joinToString("\n")
+            ?: extras.getCharSequenceArray("android.textLines")?.joinToString("\n") ?: return
 
-        if (title.isNullOrEmpty() || text.isNullOrEmpty()) {
-            log("❌ Gagal ambil title/text")
-            return
+        log("📩 Notif dari: $pkg")
+        log("👤 Pengirim: $title")
+        log("💬 Pesan: $text")
+
+        // Ambil replyAction
+        var replyAction: Notification.Action? = null
+        sbn.notification.actions?.forEach { if (it.remoteInputs != null) replyAction = it }
+        if (replyAction == null) {
+            val wearable = Notification.WearableExtender(sbn.notification)
+            wearable.actions.forEach { if (it.remoteInputs != null) replyAction = it }
         }
+        if (replyAction == null) return
 
-        // ===== FILTER SUMMARY =====
-        if (title == "WhatsApp" && text.contains("pesan baru")) {
-            log("⚠️ Summary WA → skip")
-            return
-        }
-        if (text.contains("Memeriksa pesan baru")) {
-            log("⚠️ WA checking → skip")
-            return
-        }
+        LastReplyAction.action = replyAction
 
-        log("👤 Pengirim : $title")
-        log("💬 Pesan    : $text")
-
-        // ===== KIRIM DATA KE TERMUX (NODE BOT) =====
+        // Kirim ke Termux
         try {
             val intent = Intent().apply {
-                setClassName(
-                    "com.termux",
-                    "com.termux.app.RunCommandReceiver"
-                )
+                setClassName("com.termux", "com.termux.app.RunCommandReceiver")
                 setPackage("com.termux")
                 action = "com.termux.RUN_COMMAND"
-                putExtra(
-                    "com.termux.RUN_COMMAND_PATH",
-                    "/data/data/com.termux/files/usr/bin/node"
-                )
+                putExtra("com.termux.RUN_COMMAND_PATH", "/data/data/com.termux/files/usr/bin/node")
                 putExtra(
                     "com.termux.RUN_COMMAND_ARGUMENTS",
                     arrayOf("/sdcard/botwa/wabot.js", title, text)
@@ -98,10 +63,9 @@ class NotificationService : NotificationListenerService() {
                 putExtra("com.termux.RUN_COMMAND_BACKGROUND", true)
             }
             sendBroadcast(intent)
-            log("🚀 Data dikirim ke Termux → menunggu reply status")
+            log("🚀 Data dikirim ke Termux")
         } catch (e: Exception) {
-            log("❌ Gagal kirim ke Termux")
-            log("Error: ${e.message}")
+            log("❌ Gagal kirim ke Termux: ${e.message}")
         }
     }
 }
