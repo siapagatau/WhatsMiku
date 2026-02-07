@@ -1,11 +1,9 @@
 package com.farel.waresponder
 
 import android.app.Notification
-import android.app.RemoteInput
-import android.content.Intent
-import android.os.Environment
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
+import org.json.JSONObject
 import java.io.File
 
 object LastReplyAction {
@@ -58,23 +56,33 @@ class NotificationService : NotificationListenerService() {
 
         LastReplyAction.action = replyAction
 
-        // Kirim data ke Termux
+        // Jalankan Node langsung
+        runNodeScript(title, text)
+    }
+
+    private fun runNodeScript(title: String, text: String) {
         try {
-            val intent = Intent().apply {
-                setClassName("com.termux", "com.termux.app.RunCommandReceiver")
-                setPackage("com.termux")
-                action = "com.termux.RUN_COMMAND"
-                putExtra("com.termux.RUN_COMMAND_PATH", "/data/data/com.termux/files/usr/bin/node")
-                putExtra(
-                    "com.termux.RUN_COMMAND_ARGUMENTS",
-                    arrayOf("/sdcard/botwa/wabot.js", title, text)
-                )
-                putExtra("com.termux.RUN_COMMAND_BACKGROUND", true)
-            }
-            sendBroadcast(intent)
-            log("🚀 Data dikirim ke Termux")
+            // Optional: escape karakter khusus
+            val safeTitle = title.replace("\"", "\\\"")
+            val safeText = text.replace("\"", "\\\"")
+
+            val nodePath = "/data/data/com.termux/files/usr/bin/node"
+            val scriptPath = "/sdcard/botwa/wabot.js"
+
+            val process = ProcessBuilder(
+                nodePath,
+                scriptPath,
+                safeTitle,
+                safeText
+            )
+                .redirectErrorStream(true)
+                .start()
+
+            // Baca output Node
+            val output = process.inputStream.bufferedReader().readText()
+            log("🚀 Node output: $output")
         } catch (e: Exception) {
-            log("❌ Gagal kirim ke Termux: ${e.message}")
+            log("❌ Gagal jalankan Node: ${e.message}")
         }
     }
 }
