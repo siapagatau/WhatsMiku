@@ -3,9 +3,10 @@ package com.farel.waresponder
 import android.app.Notification
 import android.app.RemoteInput
 import android.content.Intent
+import android.os.Environment
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
-import android.util.Log
+import java.io.File
 
 object LastReplyAction {
     var action: Notification.Action? = null
@@ -13,10 +14,15 @@ object LastReplyAction {
 
 class NotificationService : NotificationListenerService() {
 
-    private val TAG = "WAResponder"
+    private val logFile by lazy {
+        File(getExternalFilesDir(null), "waresponder.log")
+    }
 
     private fun log(msg: String) {
-        Log.d(TAG, msg)
+        try {
+            val line = "${System.currentTimeMillis()} $msg\n"
+            logFile.appendText(line)
+        } catch (_: Exception) {}
     }
 
     override fun onListenerConnected() {
@@ -45,11 +51,14 @@ class NotificationService : NotificationListenerService() {
             val wearable = Notification.WearableExtender(sbn.notification)
             wearable.actions.forEach { if (it.remoteInputs != null) replyAction = it }
         }
-        if (replyAction == null) return
+        if (replyAction == null) {
+            log("❌ Tidak ada tombol reply")
+            return
+        }
 
         LastReplyAction.action = replyAction
 
-        // Kirim ke Termux
+        // Kirim data ke Termux
         try {
             val intent = Intent().apply {
                 setClassName("com.termux", "com.termux.app.RunCommandReceiver")
