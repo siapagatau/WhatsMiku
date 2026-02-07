@@ -1,8 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Permission umum -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
-    <uses-permission android:name="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
     <application
         android:label="WAResponder"
@@ -11,7 +12,7 @@
         android:theme="@style/Theme.AppCompat.Light.NoActionBar"
         android:allowBackup="false">
 
-        <!-- ⭐ TAMBAHKAN INI -->
+        <!-- Launcher -->
         <activity
             android:name=".MainActivity"
             android:exported="true">
@@ -23,25 +24,32 @@
 
         </activity>
 
-        <!-- Notification Listener -->
+        <!-- ⭐ INI BAGIAN PALING PENTING -->
         <service
             android:name=".NotificationService"
+            android:label="WAResponder Notification"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
             android:exported="true">
+
             <intent-filter>
                 <action android:name="android.service.notification.NotificationListenerService"/>
             </intent-filter>
+
         </service>
 
-        <!-- Terima reply dari Termux -->
-        <receiver android:name=".TermuxReceiver" android:exported="true">
+        <!-- Receiver dari Termux -->
+        <receiver
+            android:name=".TermuxReceiver"
+            android:exported="true">
             <intent-filter>
                 <action android:name="WA_REPLY"/>
             </intent-filter>
         </receiver>
 
-        <!-- Kirim direct reply -->
-        <receiver android:name=".ReplyReceiver" android:exported="false"/>
+        <!-- Direct reply -->
+        <receiver
+            android:name=".ReplyReceiver"
+            android:exported="false"/>
 
     </application>
 </manifest>
