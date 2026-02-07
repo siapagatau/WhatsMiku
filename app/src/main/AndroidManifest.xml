@@ -34,10 +34,6 @@
         <action android:name="android.service.notification.NotificationListenerService"/>
     </intent-filter>
 
-    <!-- ⭐ INI YANG BIKIN ANDROID MENGAKUI -->
-    <meta-data
-        android:name="android.service.notification"
-        android:resource="@xml/notification_listener"/>
 </service>
         
         <!-- Receiver dari Termux -->
