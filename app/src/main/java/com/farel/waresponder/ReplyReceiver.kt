@@ -4,10 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
-import android.widget.Toast
 import android.app.RemoteInput
-import android.app.Notification
-import android.app.NotificationManager
 
 class ReplyReceiver : BroadcastReceiver() {
 
@@ -16,14 +13,22 @@ class ReplyReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != "WA_REPLY") return
 
-        val reply = intent.getStringExtra("reply") ?: ""
+        val replyText = intent.getStringExtra("reply") ?: return
         val key = intent.getStringExtra("key") ?: "dummy"
 
-        Log.d(TAG, "📤 WA_REPLY diterima: $reply (key=$key)")
-        Toast.makeText(context, "WA_REPLY: $reply", Toast.LENGTH_SHORT).show()
+        Log.d(TAG, "📤 WA_REPLY diterima: $replyText (key=$key)")
 
-        // ===== Kirim balasan ke WhatsApp =====
-        // Bisa lewat NotificationListenerService direct reply jika mau
-        // Atau lewat PendingIntent WA jika sudah punya reference actionIntent
+        // Kirim balasan ke WA via last replyAction
+        LastReplyAction.action?.let { action ->
+            try {
+                val bundle = android.os.Bundle()
+                action.remoteInputs?.forEach { ri -> bundle.putCharSequence(ri.resultKey, replyText) }
+                RemoteInput.addResultsToIntent(action.remoteInputs, Intent(), bundle)
+                action.actionIntent.send(context, 0, Intent())
+                Log.d(TAG, "✅ Balasan dikirim ke WA: $replyText")
+            } catch (e: Exception) {
+                Log.d(TAG, "❌ Gagal kirim balasan: ${e.message}")
+            }
+        }
     }
 }
