@@ -5,8 +5,6 @@ import android.os.Bundle
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
-import android.app.Notification
-import android.app.RemoteInput
 import java.io.File
 
 class NotificationService : NotificationListenerService() {
@@ -57,10 +55,8 @@ class NotificationService : NotificationListenerService() {
         }
 
         val extras = sbn.notification.extras
-
-        // 🔎 Ambil isi pesan (multi fallback)
         val title = extras.getString("android.title")
-        var text = extras.getCharSequence("android.text")?.toString()
+        val text = extras.getCharSequence("android.text")?.toString()
             ?: extras.getCharSequence("android.bigText")?.toString()
             ?: extras.getCharSequenceArray("android.textLines")?.joinToString("\n")
 
@@ -69,12 +65,20 @@ class NotificationService : NotificationListenerService() {
             return
         }
 
+        // ===== FILTER SUMMARY =====
+        if (title == "WhatsApp" && text.contains("pesan baru")) {
+            log("⚠️ Summary WA → skip")
+            return
+        }
+        if (text.contains("Memeriksa pesan baru")) {
+            log("⚠️ WA checking → skip")
+            return
+        }
+
         log("👤 Pengirim : $title")
         log("💬 Pesan    : $text")
 
-        // =====================================================
-        // 🚀 KIRIM DATA KE TERMUX (NODE BOT)
-        // =====================================================
+        // ===== KIRIM DATA KE TERMUX =====
         try {
             val intent = Intent().apply {
                 setClassName(
@@ -93,10 +97,8 @@ class NotificationService : NotificationListenerService() {
                 )
                 putExtra("com.termux.RUN_COMMAND_BACKGROUND", true)
             }
-
             sendBroadcast(intent)
             log("🚀 Data dikirim ke Termux")
-
         } catch (e: Exception) {
             log("❌ Gagal kirim ke Termux")
             log("Error: ${e.message}")
