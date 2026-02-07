@@ -1,5 +1,6 @@
 plugins {
     id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'   // ← INI YANG KEMARIN KURANG
 }
 
 android {
@@ -15,11 +16,11 @@ android {
     }
 
     buildTypes {
-        release {
-            minifyEnabled false
-        }
         debug {
             debuggable true
+        }
+        release {
+            minifyEnabled false
         }
     }
 
@@ -29,7 +30,7 @@ android {
     }
 
     kotlinOptions {
-        jvmTarget = '17'
+        jvmTarget = "17"
     }
 }
 
