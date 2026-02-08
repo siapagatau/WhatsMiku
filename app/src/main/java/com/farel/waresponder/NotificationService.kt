@@ -20,12 +20,16 @@ class NotificationService : NotificationListenerService() {
         File(getExternalFilesDir(null), "waresponder.log")
     }
 
-    private fun log(msg: String) {
-        try {
-            val line = "${System.currentTimeMillis()} $msg\n"
-            logFile.appendText(line)
-        } catch (_: Exception) {}
-    }
+private fun log(msg: String) {
+    try {
+        val line = "${System.currentTimeMillis()} $msg"
+        logFile.appendText("$line\n")
+
+        // 🔥 kirim ke Termux
+        LocalSocketApi.sendLog(line)
+
+    } catch (_: Exception) {}
+}
 
     override fun onListenerConnected() {
         super.onListenerConnected()
