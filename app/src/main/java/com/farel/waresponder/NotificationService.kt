@@ -57,32 +57,27 @@ class NotificationService : NotificationListenerService() {
         LastReplyAction.action = replyAction
 
         // Jalankan Node langsung
-        runNodeScript(title, text)
+        askBotAndReply(title, text)
     }
 
-    private fun runNodeScript(title: String, text: String) {
+private fun askBotAndReply(sender:String, message:String){
+    Thread {
+        val reply = LocalApi.sendMessage(sender, message) ?: return@Thread
+        sendReplyToWhatsapp(reply)
+    }.start()
+}
+
+private fun sendReplyToWhatsapp(replyText:String){
+    LastReplyAction.action?.let { action ->
         try {
-            // Optional: escape karakter khusus
-            val safeTitle = title.replace("\"", "\\\"")
-            val safeText = text.replace("\"", "\\\"")
-
-            val nodePath = "/data/data/com.termux/files/usr/bin/node"
-            val scriptPath = "/sdcard/botwa/wabot.js"
-
-            val process = ProcessBuilder(
-                nodePath,
-                scriptPath,
-                safeTitle,
-                safeText
-            )
-                .redirectErrorStream(true)
-                .start()
-
-            // Baca output Node
-            val output = process.inputStream.bufferedReader().readText()
-            log("🚀 Node output: $output")
-        } catch (e: Exception) {
-            log("❌ Gagal jalankan Node: ${e.message}")
-        }
+            val bundle = android.os.Bundle()
+            action.remoteInputs?.forEach { ri ->
+                bundle.putCharSequence(ri.resultKey, replyText)
+            }
+            RemoteInput.addResultsToIntent(action.remoteInputs, Intent(), bundle)
+            action.actionIntent.send(this, 0, Intent())
+            LocalApi.notifyReplySent(replyText)
+        } catch (_: Exception) {}
     }
+}
 }
