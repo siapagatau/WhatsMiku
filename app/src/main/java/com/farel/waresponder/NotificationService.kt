@@ -53,18 +53,16 @@ private fun isDuplicate(sender: String, message: String): Boolean {
 private fun isFromSelf(sbn: StatusBarNotification): Boolean {
     val extras = sbn.notification.extras
 
-    // 1️⃣ Pesan yang dikirim sendiri (MessagingStyle)
-    if (extras.getParcelable<Any>("android.messagingStyleUser") != null) {
+    // ✅ WhatsApp outgoing message flag
+    if (extras.containsKey("android.messagingStyleUser")) {
         return true
     }
 
-    // 2️⃣ Teks diawali "You:" atau "Anda:"
     val text = extras.getCharSequence("android.text")?.toString() ?: ""
     if (text.startsWith("You:", true) || text.startsWith("Anda:", true)) {
         return true
     }
 
-    // 3️⃣ Judul = nama sendiri
     val selfName = extras.getString("android.selfDisplayName")
     val title = extras.getString("android.title")
     if (!selfName.isNullOrEmpty() && selfName == title) {
@@ -87,11 +85,6 @@ override fun onNotificationPosted(sbn: StatusBarNotification) {
         log("⏭ Skip pesan dari diri sendiri")
         return
     }
-
-if (isDuplicate(title, text)) {
-    log("⏭ Skip duplicate message")
-    return
-}
     
         val extras = sbn.notification.extras
         val title = extras.getString("android.title") ?: return
@@ -99,6 +92,11 @@ if (isDuplicate(title, text)) {
             ?: extras.getCharSequence("android.bigText")?.toString()
             ?: extras.getCharSequenceArray("android.textLines")?.joinToString("\n") ?: return
 
+if (isDuplicate(title, text)) {
+    log("⏭ Skip duplicate message")
+    return
+}
+    
         log("📩 Notif dari: $pkg")
         log("👤 Pengirim: $title")
         log("💬 Pesan: $text")
