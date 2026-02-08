@@ -1,44 +1,50 @@
 package com.farel.waresponder
 
-import java.io.*
+import java.io.BufferedReader
+import java.io.BufferedWriter
+import java.io.InputStreamReader
+import java.io.OutputStreamWriter
+import java.io.PrintWriter
+import java.net.InetSocketAddress
 import java.net.Socket
 import org.json.JSONObject
 
 object LocalSocketApi {
-    private const val HOST = "127.0.0.1"
+
+    // ⭐ HOST khusus Android untuk akses server lokal Termux
+    private const val HOST = "10.0.2.2"
     private const val PORT = 8443
 
     fun sendMessage(jsonMessage: String): String? {
         return try {
-            Socket(HOST, PORT).use { socket ->
-                socket.soTimeout = 5000 // Tambah timeout jadi 5 detik
+            val socket = Socket()
 
-                val writer = PrintWriter(
-                    BufferedWriter(
-                        OutputStreamWriter(socket.getOutputStream())
-                    ), 
-                    true
-                )
-                val reader = BufferedReader(
-                    InputStreamReader(socket.getInputStream())
-                )
+            // connect timeout
+            socket.connect(InetSocketAddress(HOST, PORT), 5000)
+            socket.soTimeout = 5000
 
-                // Kirim dengan newline di akhir (sesuai server)
-                writer.println(jsonMessage)
-                
-                // Baca balasan
-                val response = reader.readLine()
-                
-                if (response != null) {
-                    val jsonResponse = JSONObject(response)
-                    jsonResponse.optString("reply", null)
-                } else {
-                    null
-                }
-            }
-        } catch (e: IOException) {
-            e.printStackTrace()
-            null
+            val writer = PrintWriter(
+                BufferedWriter(OutputStreamWriter(socket.getOutputStream())),
+                true
+            )
+
+            val reader = BufferedReader(
+                InputStreamReader(socket.getInputStream())
+            )
+
+            // kirim JSON ke server Termux
+            writer.println(jsonMessage)
+
+            // baca balasan server
+            val response = reader.readLine()
+
+            socket.close()
+
+            if (response != null) {
+                val json = JSONObject(response)
+                json.optString("reply", null)
+            } else null
+
         } catch (e: Exception) {
             e.printStackTrace()
             null
