@@ -23,6 +23,9 @@ class NotificationService : NotificationListenerService() {
         } catch (_: Exception) {}
     }
 
+    // 🔥 CACHE REPLY ACTION PER CHAT
+    private val replyActionCache = mutableMapOf<String, Notification.Action>()
+
     override fun onListenerConnected() {
         super.onListenerConnected()
         log("✅ Notification Listener CONNECTED")
@@ -54,12 +57,12 @@ class NotificationService : NotificationListenerService() {
     private fun extractLastMessage(extras: Bundle): String? {
         val lines = extras.getCharSequenceArray("android.textLines")
         if (!lines.isNullOrEmpty()) {
-            return lines.last().toString() // 🔥 PENTING
+            return lines.last().toString()
         }
 
         val text = extras.getCharSequence("android.text")?.toString()
         if (text != null && text.matches(Regex("\\d+ pesan baru", RegexOption.IGNORE_CASE))) {
-            return null // skip summary
+            return null
         }
 
         return text ?: extras.getCharSequence("android.bigText")?.toString()
@@ -84,15 +87,23 @@ class NotificationService : NotificationListenerService() {
         log("📩 From: $title")
         log("💬 Msg: $text")
 
-        // ================= REPLY ACTION =================
+        // ================= REPLY ACTION HANDLING =================
 
-        val replyAction = findReplyAction(sbn)
-        if (replyAction == null) {
-            log("❌ Reply action not found")
+        val freshAction = findReplyAction(sbn)
+
+        if (freshAction != null) {
+            replyActionCache[title] = freshAction
+            log("💾 Reply action cached for: $title")
+        }
+
+        val actionToUse = freshAction ?: replyActionCache[title]
+
+        if (actionToUse == null) {
+            log("❌ Reply action not found (no cache) for: $title")
             return
         }
 
-        askBotAndReply(title, text, replyAction)
+        askBotAndReply(title, text, actionToUse)
     }
 
     private fun findReplyAction(sbn: StatusBarNotification): Notification.Action? {
@@ -152,5 +163,13 @@ class NotificationService : NotificationListenerService() {
         } catch (e: Exception) {
             log("❌ Reply failed: ${e.message}")
         }
+    }
+
+    // ================= CLEANUP =================
+
+    override fun onNotificationRemoved(sbn: StatusBarNotification) {
+        val title = sbn.notification.extras.getString("android.title") ?: return
+        replyActionCache.remove(title)
+        log("🧹 Reply action cache cleared for: $title")
     }
 }
