@@ -23,7 +23,9 @@ class NotificationService : NotificationListenerService() {
             val line = "${System.currentTimeMillis()} $msg"
             logFile.appendText("$line\n")
             LocalSocketApi.sendLog(line)
-        } catch (_: Exception) {}
+        } catch (e: Exception) {
+            logFile.appendText("❌ LOG ERROR: ${e.message}\n")
+        }
     }
 
     override fun onListenerConnected() {
