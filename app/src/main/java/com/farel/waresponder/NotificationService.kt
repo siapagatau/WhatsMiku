@@ -3,14 +3,11 @@ package com.farel.waresponder
 import android.app.Notification
 import android.app.RemoteInput
 import android.content.Intent
+import android.os.Bundle
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import org.json.JSONObject
 import java.io.File
-
-object LastReplyAction {
-    var action: Notification.Action? = null
-}
 
 class NotificationService : NotificationListenerService() {
 
@@ -23,9 +20,7 @@ class NotificationService : NotificationListenerService() {
             val line = "${System.currentTimeMillis()} $msg"
             logFile.appendText("$line\n")
             LocalSocketApi.sendLog(line)
-        } catch (e: Exception) {
-            logFile.appendText("❌ LOG ERROR: ${e.message}\n")
-        }
+        } catch (_: Exception) {}
     }
 
     override fun onListenerConnected() {
@@ -35,162 +30,127 @@ class NotificationService : NotificationListenerService() {
 
     // ================= FILTER =================
 
-    private fun isGroupSummary(sbn: StatusBarNotification): Boolean {
-        return sbn.notification.extras.getBoolean("android.isGroupSummary", false)
-    }
+    private fun isGroupSummary(sbn: StatusBarNotification): Boolean =
+        sbn.notification.extras.getBoolean("android.isGroupSummary", false)
 
-    private fun isSystemWhatsappNotification(title: String): Boolean {
-        return title == "WhatsApp"
-    }
+    private fun isSystemWhatsappNotification(title: String): Boolean =
+        title == "WhatsApp"
 
     private fun isFromSelf(sbn: StatusBarNotification): Boolean {
         val extras = sbn.notification.extras
 
-        // 1️⃣ Outgoing flag (paling aman kalau ada)
-        if (extras.getBoolean("android.isOutgoing", false)) {
-            return true
-        }
+        if (extras.getBoolean("android.isOutgoing", false)) return true
 
-        // 2️⃣ Prefix teks
         val text = extras.getCharSequence("android.text")?.toString() ?: ""
-        if (text.startsWith("You:", true) || text.startsWith("Anda:", true)) {
-            return true
-        }
+        if (text.startsWith("You:", true) || text.startsWith("Anda:", true)) return true
 
-        // 3️⃣ Nama diri sendiri == title
         val selfName = extras.getString("android.selfDisplayName")
         val title = extras.getString("android.title")
-        if (!selfName.isNullOrEmpty() && selfName == title) {
-            return true
-        }
-
-        return false
+        return !selfName.isNullOrEmpty() && selfName == title
     }
 
-    // ================= DUPLICATE =================
+    // ================= MESSAGE EXTRACT =================
 
-    private var lastMessageHash: Int? = null
+    private fun extractLastMessage(extras: Bundle): String? {
+        val lines = extras.getCharSequenceArray("android.textLines")
+        if (!lines.isNullOrEmpty()) {
+            return lines.last().toString() // 🔥 PENTING
+        }
 
-    private fun isDuplicate(sender: String, message: String): Boolean {
-        val hash = (sender + message).hashCode()
-        if (hash == lastMessageHash) return true
-        lastMessageHash = hash
-        return false
+        val text = extras.getCharSequence("android.text")?.toString()
+        if (text != null && text.matches(Regex("\\d+ pesan baru", RegexOption.IGNORE_CASE))) {
+            return null // skip summary
+        }
+
+        return text ?: extras.getCharSequence("android.bigText")?.toString()
     }
 
     // ================= MAIN =================
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
 
-        val pkg = sbn.packageName
-        if (pkg != "com.whatsapp" && pkg != "com.whatsapp.w4b") return
+        if (sbn.packageName != "com.whatsapp" &&
+            sbn.packageName != "com.whatsapp.w4b") return
 
         val extras = sbn.notification.extras
         val title = extras.getString("android.title") ?: return
 
-        // 🚫 Summary
-        if (isGroupSummary(sbn)) {
-            log("⏭ Skip summary notification")
-            return
-        }
+        if (isGroupSummary(sbn)) return
+        if (isSystemWhatsappNotification(title)) return
+        if (isFromSelf(sbn)) return
 
-        // 🚫 Notif sistem WhatsApp
-        if (isSystemWhatsappNotification(title)) {
-            log("⏭ Skip WhatsApp system notification")
-            return
-        }
+        val text = extractLastMessage(extras) ?: return
 
-        // 🚫 Pesan dari diri sendiri
-        if (isFromSelf(sbn)) {
-            log("⏭ Skip pesan dari diri sendiri")
-            return
-        }
-
-        val text =
-            extras.getCharSequence("android.text")?.toString()
-                ?: extras.getCharSequence("android.bigText")?.toString()
-                ?: extras.getCharSequenceArray("android.textLines")?.joinToString("\n")
-                ?: return
-
-        if (isDuplicate(title, text)) {
-            log("⏭ Skip duplicate message")
-            return
-        }
-
-        log("📩 Notif dari: $pkg")
-        log("👤 Pengirim: $title")
-        log("💬 Pesan: $text")
+        log("📩 From: $title")
+        log("💬 Msg: $text")
 
         // ================= REPLY ACTION =================
 
-        var replyAction: Notification.Action? = null
-
-        sbn.notification.actions?.forEach {
-            if (it.remoteInputs != null) replyAction = it
-        }
-
+        val replyAction = findReplyAction(sbn)
         if (replyAction == null) {
-            val wearable = Notification.WearableExtender(sbn.notification)
-            wearable.actions.forEach {
-                if (it.remoteInputs != null) replyAction = it
-            }
-        }
-
-        if (replyAction == null) {
-            log("❌ Tidak ada tombol reply")
+            log("❌ Reply action not found")
             return
         }
 
-        log("✅ Tombol reply ditemukan")
-        LastReplyAction.action = replyAction
+        askBotAndReply(title, text, replyAction)
+    }
 
-        askBotAndReply(title, text)
+    private fun findReplyAction(sbn: StatusBarNotification): Notification.Action? {
+        sbn.notification.actions?.forEach {
+            if (it.remoteInputs != null) return it
+        }
+
+        val wearable = Notification.WearableExtender(sbn.notification)
+        wearable.actions.forEach {
+            if (it.remoteInputs != null) return it
+        }
+
+        return null
     }
 
     // ================= BOT =================
 
-    private fun askBotAndReply(sender: String, message: String) {
+    private fun askBotAndReply(
+        sender: String,
+        message: String,
+        action: Notification.Action
+    ) {
         Thread {
             try {
-                log("🌐 Kirim ke Local Socket Bot...")
-
                 val json = JSONObject().apply {
                     put("sender", sender)
                     put("message", message)
                 }.toString()
 
                 val reply = LocalSocketApi.sendMessage(json)
+                if (reply.isNullOrEmpty()) return@Thread
 
-                if (reply.isNullOrEmpty()) {
-                    log("🤖 Bot tidak memberi balasan")
-                    return@Thread
-                }
-
-                log("🤖 Reply dari bot: $reply")
-                sendReplyToWhatsapp(reply)
+                sendReplyToWhatsapp(reply, action)
 
             } catch (e: Exception) {
-                log("❌ Error socket: ${e.message}")
+                log("❌ Bot error: ${e.message}")
             }
         }.start()
     }
 
-    private fun sendReplyToWhatsapp(replyText: String) {
-        LastReplyAction.action?.let { action ->
-            try {
-                val bundle = android.os.Bundle()
-                action.remoteInputs?.forEach {
-                    bundle.putCharSequence(it.resultKey, replyText)
-                }
-
-                val intent = Intent()
-                RemoteInput.addResultsToIntent(action.remoteInputs, intent, bundle)
-                action.actionIntent.send(this, 0, intent)
-
-                log("📤 Balasan terkirim ke WhatsApp")
-            } catch (e: Exception) {
-                log("❌ Gagal kirim reply: ${e.message}")
+    private fun sendReplyToWhatsapp(
+        replyText: String,
+        action: Notification.Action
+    ) {
+        try {
+            val bundle = Bundle()
+            action.remoteInputs?.forEach {
+                bundle.putCharSequence(it.resultKey, replyText)
             }
+
+            val intent = Intent()
+            RemoteInput.addResultsToIntent(action.remoteInputs, intent, bundle)
+            action.actionIntent.send(this, 0, intent)
+
+            log("📤 Reply sent")
+
+        } catch (e: Exception) {
+            log("❌ Reply failed: ${e.message}")
         }
     }
 }
