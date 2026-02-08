@@ -94,7 +94,7 @@ class NotificationService : NotificationListenerService() {
         Thread {
             try {
                 log("🌐 Kirim ke bot HTTPS...")
-                val reply = LocalApi.sendMessage(sender, message)
+                val reply = LocalSocketApi.sendMessage(message)
 
                 if (reply.isNullOrEmpty()) {
                     log("🤖 Bot tidak memberi balasan")
