@@ -12,7 +12,7 @@ import org.json.JSONObject
 object LocalSocketApi {
 
     // ⭐ HOST khusus Android untuk akses server lokal Termux
-    private const val HOST = "10.0.2.2"
+    private const val HOST = "localhost"
     private const val PORT = 8443
 
     fun sendMessage(jsonMessage: String): String? {
