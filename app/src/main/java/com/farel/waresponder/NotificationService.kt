@@ -7,6 +7,8 @@ import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import org.json.JSONObject
 import java.io.File
+import java.net.Socket
+import java.io.*
 
 object LastReplyAction {
     var action: Notification.Action? = null
@@ -38,7 +40,6 @@ class NotificationService : NotificationListenerService() {
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         val pkg = sbn.packageName
         if (pkg != "com.whatsapp" && pkg != "com.whatsapp.w4b") return
-
         if (isGroupSummary(sbn)) {
             log("⏭ Skip summary notification")
             return
@@ -60,7 +61,6 @@ class NotificationService : NotificationListenerService() {
             val wearable = Notification.WearableExtender(sbn.notification)
             wearable.actions.forEach { if (it.remoteInputs != null) replyAction = it }
         }
-
         if (replyAction == null) {
             log("❌ Tidak ada tombol reply")
             return
@@ -69,7 +69,6 @@ class NotificationService : NotificationListenerService() {
         log("✅ Tombol reply ditemukan")
         LastReplyAction.action = replyAction
 
-        // Kirim ke socket bot
         askBotAndReply(title, text)
     }
 
@@ -77,6 +76,7 @@ class NotificationService : NotificationListenerService() {
         Thread {
             try {
                 log("🌐 Kirim ke Local Socket Bot...")
+
                 val json = JSONObject().apply {
                     put("sender", sender)
                     put("message", message)
@@ -105,13 +105,10 @@ class NotificationService : NotificationListenerService() {
                 action.remoteInputs?.forEach { ri ->
                     bundle.putCharSequence(ri.resultKey, replyText)
                 }
-
                 val intent = Intent()
                 RemoteInput.addResultsToIntent(action.remoteInputs, intent, bundle)
                 action.actionIntent.send(this, 0, intent)
-
                 log("📤 Balasan terkirim ke WhatsApp")
-
             } catch (e: Exception) {
                 log("❌ Gagal kirim reply: ${e.message}")
             }
