@@ -32,7 +32,8 @@ class NotificationService : NotificationListenerService() {
     // 🔥 IMPORTANT — filter notif summary WA
     private fun isGroupSummary(sbn: StatusBarNotification): Boolean {
         val extras = sbn.notification.extras
-        return extras.getBoolean(Notification.EXTRA_IS_GROUP_SUMMARY, false)
+        // pakai string langsung agar kompatibel semua SDK
+        return extras.getBoolean("android.isGroupSummary", false)
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
