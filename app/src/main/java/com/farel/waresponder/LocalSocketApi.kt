@@ -15,6 +15,31 @@ object LocalSocketApi {
     private const val HOST = "localhost"
     private const val PORT = 8443
 
+fun sendLog(logMessage: String) {
+    try {
+        val socket = Socket()
+        socket.connect(InetSocketAddress(HOST, PORT), 2000)
+        socket.soTimeout = 2000
+
+        val writer = PrintWriter(
+            BufferedWriter(OutputStreamWriter(socket.getOutputStream())),
+            true
+        )
+
+        val json = JSONObject().apply {
+            put("type", "log")
+            put("message", logMessage)
+            put("time", System.currentTimeMillis())
+        }
+
+        writer.println(json.toString())
+        socket.close()
+
+    } catch (_: Exception) {
+        // log gagal = abaikan (jangan bikin loop error)
+    }
+}
+    
     fun sendMessage(jsonMessage: String): String? {
         return try {
             val socket = Socket()
