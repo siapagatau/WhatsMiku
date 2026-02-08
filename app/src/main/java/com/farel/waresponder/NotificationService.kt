@@ -1,5 +1,7 @@
 package com.farel.waresponder
 
+import android.content.Intent
+import android.app.RemoteInput
 import android.app.Notification
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
