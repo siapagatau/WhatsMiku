@@ -37,14 +37,58 @@ class NotificationService : NotificationListenerService() {
         return extras.getBoolean("android.isGroupSummary", false)
     }
 
-    override fun onNotificationPosted(sbn: StatusBarNotification) {
-        val pkg = sbn.packageName
-        if (pkg != "com.whatsapp" && pkg != "com.whatsapp.w4b") return
-        if (isGroupSummary(sbn)) {
-            log("⏭ Skip summary notification")
-            return
-        }
+private var lastMessageHash: Int? = null
 
+private fun isDuplicate(sender: String, message: String): Boolean {
+    val hash = (sender + message).hashCode()
+    if (hash == lastMessageHash) return true
+    lastMessageHash = hash
+    return false
+}
+    
+private fun isFromSelf(sbn: StatusBarNotification): Boolean {
+    val extras = sbn.notification.extras
+
+    // 1️⃣ Pesan yang dikirim sendiri (MessagingStyle)
+    if (extras.getParcelable<Any>("android.messagingStyleUser") != null) {
+        return true
+    }
+
+    // 2️⃣ Teks diawali "You:" atau "Anda:"
+    val text = extras.getCharSequence("android.text")?.toString() ?: ""
+    if (text.startsWith("You:", true) || text.startsWith("Anda:", true)) {
+        return true
+    }
+
+    // 3️⃣ Judul = nama sendiri
+    val selfName = extras.getString("android.selfDisplayName")
+    val title = extras.getString("android.title")
+    if (!selfName.isNullOrEmpty() && selfName == title) {
+        return true
+    }
+
+    return false
+}
+    
+override fun onNotificationPosted(sbn: StatusBarNotification) {
+    val pkg = sbn.packageName
+    if (pkg != "com.whatsapp" && pkg != "com.whatsapp.w4b") return
+
+    if (isGroupSummary(sbn)) {
+        log("⏭ Skip summary notification")
+        return
+    }
+
+    if (isFromSelf(sbn)) {
+        log("⏭ Skip pesan dari diri sendiri")
+        return
+    }
+
+if (isDuplicate(title, text)) {
+    log("⏭ Skip duplicate message")
+    return
+}
+    
         val extras = sbn.notification.extras
         val title = extras.getString("android.title") ?: return
         val text = extras.getCharSequence("android.text")?.toString()
