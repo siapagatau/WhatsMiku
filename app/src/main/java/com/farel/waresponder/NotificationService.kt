@@ -5,6 +5,7 @@ import android.app.RemoteInput
 import android.content.Intent
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
+import org.json.JSONObject
 import java.io.File
 
 object LastReplyAction {
@@ -29,10 +30,8 @@ class NotificationService : NotificationListenerService() {
         log("✅ Notification Listener CONNECTED")
     }
 
-    // 🔥 IMPORTANT — filter notif summary WA
     private fun isGroupSummary(sbn: StatusBarNotification): Boolean {
         val extras = sbn.notification.extras
-        // pakai string langsung agar kompatibel semua SDK
         return extras.getBoolean("android.isGroupSummary", false)
     }
 
@@ -40,14 +39,12 @@ class NotificationService : NotificationListenerService() {
         val pkg = sbn.packageName
         if (pkg != "com.whatsapp" && pkg != "com.whatsapp.w4b") return
 
-        // ❗ Skip summary notif (tidak punya tombol reply)
         if (isGroupSummary(sbn)) {
             log("⏭ Skip summary notification")
             return
         }
 
         val extras = sbn.notification.extras
-
         val title = extras.getString("android.title") ?: return
         val text = extras.getCharSequence("android.text")?.toString()
             ?: extras.getCharSequence("android.bigText")?.toString()
@@ -57,20 +54,11 @@ class NotificationService : NotificationListenerService() {
         log("👤 Pengirim: $title")
         log("💬 Pesan: $text")
 
-        // 🔍 Cari tombol reply WhatsApp
         var replyAction: Notification.Action? = null
-
-        // Cara normal
-        sbn.notification.actions?.forEach { action ->
-            if (action.remoteInputs != null) replyAction = action
-        }
-
-        // Cara wearable (WA Android 13+ sering taruh disini)
+        sbn.notification.actions?.forEach { if (it.remoteInputs != null) replyAction = it }
         if (replyAction == null) {
             val wearable = Notification.WearableExtender(sbn.notification)
-            wearable.actions.forEach { action ->
-                if (action.remoteInputs != null) replyAction = action
-            }
+            wearable.actions.forEach { if (it.remoteInputs != null) replyAction = it }
         }
 
         if (replyAction == null) {
@@ -79,22 +67,22 @@ class NotificationService : NotificationListenerService() {
         }
 
         log("✅ Tombol reply ditemukan")
-
         LastReplyAction.action = replyAction
 
-        // 🚀 Kirim ke HTTPS bot di Termux
+        // Kirim ke socket bot
         askBotAndReply(title, text)
     }
-
-    // ===============================
-    // HTTPS BOT COMMUNICATION
-    // ===============================
 
     private fun askBotAndReply(sender: String, message: String) {
         Thread {
             try {
-                log("🌐 Kirim ke bot HTTPS...")
-                val reply = LocalSocketApi.sendMessage(message)
+                log("🌐 Kirim ke Local Socket Bot...")
+                val json = JSONObject().apply {
+                    put("sender", sender)
+                    put("message", message)
+                }.toString()
+
+                val reply = LocalSocketApi.sendMessage(json)
 
                 if (reply.isNullOrEmpty()) {
                     log("🤖 Bot tidak memberi balasan")
@@ -105,7 +93,7 @@ class NotificationService : NotificationListenerService() {
                 sendReplyToWhatsapp(reply)
 
             } catch (e: Exception) {
-                log("❌ Error HTTPS: ${e.message}")
+                log("❌ Error socket: ${e.message}")
             }
         }.start()
     }
@@ -114,7 +102,6 @@ class NotificationService : NotificationListenerService() {
         LastReplyAction.action?.let { action ->
             try {
                 val bundle = android.os.Bundle()
-
                 action.remoteInputs?.forEach { ri ->
                     bundle.putCharSequence(ri.resultKey, replyText)
                 }
@@ -124,7 +111,6 @@ class NotificationService : NotificationListenerService() {
                 action.actionIntent.send(this, 0, intent)
 
                 log("📤 Balasan terkirim ke WhatsApp")
-                LocalApi.notifyReplySent(replyText)
 
             } catch (e: Exception) {
                 log("❌ Gagal kirim reply: ${e.message}")
