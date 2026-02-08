@@ -10,16 +10,6 @@ import java.io.File
 import java.net.Socket
 import java.io.*
 
-enum class ReplyMode {
-    WA_ONLY,
-    WA_BUSINESS_ONLY,
-    BOTH
-}
-
-object Config {
-    var replyMode = ReplyMode.WA_BUSINESS_ONLY
-}
-
 object LastReplyAction {
     var action: Notification.Action? = null
 }
@@ -86,20 +76,7 @@ override fun onNotificationPosted(sbn: StatusBarNotification) {
     val pkg = sbn.packageName
     // 🚫 bukan WhatsApp
     if (pkg != "com.whatsapp" && pkg != "com.whatsapp.w4b") return
-
-    // 🔒 filter mode
-    when (Config.replyMode) {
-        ReplyMode.WA_ONLY ->
-            if (pkg != "com.whatsapp") return
-
-        ReplyMode.WA_BUSINESS_ONLY ->
-            if (pkg != "com.whatsapp.w4b") return
-
-        ReplyMode.BOTH -> {}
-    }
-
-    log("📦 App: ${if (pkg == "com.whatsapp.w4b") "WA Business" else "WA Personal"}")
-
+    
     if (isGroupSummary(sbn)) {
         log("⏭ Skip summary notification")
         return
