@@ -34,13 +34,5 @@
             </intent-filter>
         </service>
 
-        <receiver
-            android:name=".ReplyReceiver"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="WA_REPLY"/>
-            </intent-filter>
-        </receiver>
-
     </application>
 </manifest>
