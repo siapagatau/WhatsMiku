@@ -40,54 +40,39 @@ fun sendLog(logMessage: String) {
     }
 }
     
-fun sendMessage(jsonMessage: String): String? {
-    return try {
-        val socket = Socket()
+fun sendMessage(jsonMessage: String): String? {  
+    return try {  
+        val socket = Socket()  
 
-        // connect timeout
-        socket.connect(InetSocketAddress(HOST, PORT), 5000)
-        socket.soTimeout = 5000
+        // connect timeout  
+        socket.connect(InetSocketAddress(HOST, PORT), 5000)  
+        socket.soTimeout = 5000  
 
-        val writer = PrintWriter(
-            BufferedWriter(OutputStreamWriter(socket.getOutputStream())),
-            true
-        )
+        val writer = PrintWriter(  
+            BufferedWriter(OutputStreamWriter(socket.getOutputStream())),  
+            true  
+        )  
 
-        val reader = BufferedReader(
-            InputStreamReader(socket.getInputStream())
-        )
+        val reader = BufferedReader(  
+            InputStreamReader(socket.getInputStream())  
+        )  
 
-        // kirim JSON ke server Termux
-        writer.println(jsonMessage)
+        // kirim JSON ke server Termux  
+        writer.println(jsonMessage)  
 
-        // baca balasan server
-        val response = reader.readLine()
+        // baca balasan server  
+        val response = reader.readLine()  
 
-        socket.close()
+        socket.close()  
 
-        if (response != null) {
-            val json = JSONObject(response)
+        if (response != null) {  
+            val json = JSONObject(response)  
+            json.optString("reply", null)  
+        } else null  
 
-            // 🔄 COMMAND MODE
-            if (json.optString("cmd") == "mode") {
-                val value = json.optString("value")
-                try {
-                    Config.replyMode = ReplyMode.valueOf(value)
-                    sendLog("🔄 Mode diubah ke $value")
-                } catch (_: Exception) {
-                    sendLog("❌ Mode tidak valid: $value")
-                }
-                return null
-            }
-
-            // 🤖 reply normal dari bot
-            return json.optString("reply", null)
-        }
-
-        null
-    } catch (e: Exception) {
-        e.printStackTrace()
-        null
-    }
+    } catch (e: Exception) {  
+        e.printStackTrace()  
+        null  
+    }  
 }
 }
