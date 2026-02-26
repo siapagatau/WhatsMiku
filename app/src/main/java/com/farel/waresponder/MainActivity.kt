@@ -13,7 +13,6 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // UI sederhana
         val tv = TextView(this)
         tv.text = "WAResponder aktif ✅\n\n" +
                 "1. Aktifkan Notification Access\n" +
@@ -23,11 +22,22 @@ class MainActivity : AppCompatActivity() {
         tv.setPadding(40, 80, 40, 40)
         setContentView(tv)
 
-        // 🔥 PENTING: paksa reconnect NotificationListener
         toggleNotificationListenerService()
 
-        // 🔥 buka halaman Notification Access otomatis
-        startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+        // ✅ Cek dulu sebelum buka settings
+        if (!isNotificationServiceEnabled()) {
+            startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+        }
+    }
+
+    private fun isNotificationServiceEnabled(): Boolean {
+        val cn = ComponentName(this, NotificationService::class.java)
+        val flat = Settings.Secure.getString(
+            contentResolver,
+            Settings.Secure.ENABLED_NOTIFICATION_LISTENERS
+        ) ?: return false
+
+        return flat.contains(cn.flattenToString())
     }
 
     private fun toggleNotificationListenerService() {
